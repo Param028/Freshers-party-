@@ -146,7 +146,7 @@ function mapPerformance(data) {
     consent: validConsent(data.consent)
   };
   const memberLines = row.member_names.split('\n').map((line) => line.trim()).filter(Boolean);
-  if (row.performance_name.length < 2 || row.lead_name.length < 2 || digits(row.phone).length !== 10 || row.member_count < 1 || row.member_count > 15 || (row.member_count > 1 && memberLines.length < row.member_count) || !row.performance_type || row.duration < 1 || row.duration > 5 || row.lead_branch_year !== 'Data Science / 1st year' || !row.consent) {
+  if (row.performance_name.length < 2 || row.lead_name.length < 2 || digits(row.phone).length !== 10 || row.member_count < 1 || row.member_count > 15 || (row.member_count > 1 && memberLines.length < row.member_count) || !row.performance_type || row.duration < 1 || row.duration > 5 || row.lead_branch_year !== 'Data Science' || !row.consent) {
     throw new Error('Please complete the performance entry with valid details.');
   }
   return row;

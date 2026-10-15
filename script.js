@@ -25,10 +25,6 @@ const SITE_CONFIG = {
     openDateLabel: '01 OCT',
     auditionDateLabel: 'TO BE ANNOUNCED'
   },
-  eligibility: {
-    years: ['1st year'],
-    branches: ['Data Science']
-  },
   contacts: {
     instagram: 'https://instagram.com/freshers.northstar',
     instagramLabel: '@freshers.northstar'
@@ -180,16 +176,6 @@ async function refreshPublicContacts() {
   }
 }
 
-function populateOptions() {
-  const branchOptions = SITE_CONFIG.eligibility.branches.map((branch) => `<option value="${branch}">${branch}</option>`).join('');
-  const year = $('#contest-year');
-  const leadBranchYear = $('#lead-branch-year');
-  if (year) year.innerHTML = '<option value="2nd year" selected>2nd year</option>';
-  if (leadBranchYear) {
-    leadBranchYear.insertAdjacentHTML('beforeend', SITE_CONFIG.eligibility.years.flatMap((yearName) => SITE_CONFIG.eligibility.branches.map((branchName) => `<option value="${branchName} / ${yearName}">${branchName} / ${yearName}</option>`)).join(''));
-  }
-}
-
 function formatTimePart(value) { return String(Math.max(0, value)).padStart(2, '0'); }
 function updateCountdown() {
   const eventDistance = new Date(SITE_CONFIG.event.date).getTime() - Date.now();
@@ -233,7 +219,7 @@ function applyRegistrationState() {
     if (!wrap || !closed) return;
     const panel = $('[data-form-panel]', wrap);
     if (panel && !panel.querySelector('.closed-form-message')) {
-      panel.innerHTML = `<div class="closed-form-message"><span class="success-sfx">LATE!</span><span class="success-icon">×</span><p class="eyebrow">CASTING CLOSED</p><h3>This panel<br /><span>is locked.</span></h3><p>Registration closed on <strong>${SITE_CONFIG.event.deadlineLabel}</strong>. Follow the event Instagram for shortlist and show-night updates.</p><a class="button button-light" href="${SITE_CONFIG.contacts.instagram}" target="_blank" rel="noreferrer">Follow event updates ↗</a></div>`;
+      panel.innerHTML = `<div class="closed-form-message"><span class="success-sfx">LATE!</span><span class="success-icon">×</span><p class="eyebrow">CASTING CLOSED</p><h3>This panel<br /><span>is locked.</span></h3><p>Registration closed on <strong>${SITE_CONFIG.event.deadlineLabel}</strong>. Follow the event Instagram for updates.</p><a class="button button-light" href="${SITE_CONFIG.contacts.instagram}" target="_blank" rel="noreferrer">Follow event updates ↗</a></div>`;
     }
   });
   if (closed) {
@@ -299,7 +285,7 @@ function validatePerformance(form) {
   if (!type.value) errors.push([type, 'Pick a performance type.']);
   if (Number(duration.value) < 1 || Number(duration.value) > 5) errors.push([duration, 'Keep it between 1 and 5 minutes.']);
   if (description.value.length > 200) errors.push([description, 'Keep it under 200 characters.']);
-  if (!leadBranchYear.value) errors.push([leadBranchYear, 'Pick branch and year.']);
+  if (leadBranchYear.value !== 'Data Science') errors.push([leadBranchYear, 'Department must be Data Science.']);
   if (!consent.checked) errors.push([consent, 'Tick the rules box to enter.']);
   errors.forEach(([input, message]) => setError(input, message));
   return errors;
@@ -449,7 +435,6 @@ function wireAnimations() {
 
 function boot() {
   setTextBindings();
-  populateOptions();
   updateCountdown();
   window.setInterval(updateCountdown, 30000);
   applyRegistrationState();

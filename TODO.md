@@ -8,6 +8,7 @@
 ## [x] Data Science Department event details
 - The Freshers Party is clearly identified as a Data Science Department event across the event page; the performance branch option and server-side lead check are limited to Data Science.
 - The event date is Thursday, 22 October 2026 in the hero, countdown and timeline. Registration closes Monday, 19 October 2026 at 11:59 PM IST; remaining schedule details are labelled “To be announced” rather than retaining stale November dates.
+- Keep all party copy time-neutral: do not describe the event as happening at night.
 - The location is labelled “To be announced” by default and refreshes from the saved server setting.
 
 ## [x] Mr & Miss Freshers registration
@@ -16,8 +17,8 @@
 - Submit through the server-side API to Supabase `public.contestant_registrations`.
 
 ## [x] Performance signup
-- Collect performance/group name, lead name, phone, member count (1–15), member names when required, performance category, duration (1–5 minutes), optional description (up to 200 characters), equipment needs, lead branch/year and consent.
-- Require all member names when member count is greater than one. Restrict the branch option and server-side accepted lead branch/year to Data Science / 1st year.
+- Collect performance/group name, lead name, phone, member count (1–15), member names when required, performance category, duration (1–5 minutes), optional description (up to 200 characters), equipment needs, the fixed Data Science department value (no year selection) and consent.
+- Require all member names when member count is greater than one. The only accepted department value is `Data Science` on both client and server.
 - Submit through the server-side API to Supabase `public.performance_registrations`.
 
 ## [x] Prominent registration actions
