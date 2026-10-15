@@ -8,26 +8,26 @@ const SITE_CONFIG = {
     name: 'FRESHERS',
     shortName: "FRESHERS '26",
     yearShort: "'26",
-    issueLabel: 'ISSUE 01 / OPEN CASTING CALL',
-    heroTag: 'NOV 2026',
-    tagline: 'Your first college plot twist deserves a soundtrack, a spotlight and one ridiculously good entrance.',
-    date: '2026-11-21T17:00:00+05:30',
-    dateLabel: 'SATURDAY, 21 NOV 2026',
-    dateLabelShort: '21 NOV',
+    issueLabel: 'DATA SCIENCE / OPEN CASTING CALL',
+    heroTag: 'OCT 2026',
+    tagline: 'Data Science deserves a soundtrack, a spotlight and one ridiculously good entrance.',
+    date: '2026-10-22T17:00:00+05:30',
+    dateLabel: 'THURSDAY, 22 OCT 2026',
+    dateLabelShort: '22 OCT',
     timeLabel: '5:00 PM — 8:30 PM',
-    venue: 'THE QUAD',
-    venueDetail: 'Northstar Institute of Technology',
-    collegeName: 'NORTHSTAR INSTITUTE OF TECHNOLOGY',
-    collegeShort: 'NORTHSTAR / 01',
-    registrationDeadline: '2026-11-10T23:59:59+05:30',
-    deadlineLabel: '10 NOV 2026',
-    deadlineLabelShort: '10 NOV',
+    venue: 'TO BE ANNOUNCED',
+    venueDetail: 'Data Science Department',
+    collegeName: 'DATA SCIENCE DEPARTMENT',
+    collegeShort: 'DATA SCIENCE',
+    registrationDeadline: '2026-10-22T17:00:00+05:30',
+    deadlineLabel: '22 OCT 2026',
+    deadlineLabelShort: '22 OCT',
     openDateLabel: '01 OCT',
-    auditionDateLabel: '14–18 NOV'
+    auditionDateLabel: 'TO BE ANNOUNCED'
   },
   eligibility: {
     years: ['1st year'],
-    branches: ['Computer Science', 'Electronics & Communication', 'Business Administration', 'Design & Media', 'Mechanical Engineering', 'Civil Engineering', 'Other']
+    branches: ['Data Science']
   },
   contacts: {
     primary: { name: 'Aarav Mehta', phone: '+91 98765 43210', whatsapp: '919876543210', role: 'EVENT LEAD' },
@@ -93,6 +93,20 @@ function setTextBindings() {
   $$('[data-contact-whatsapp]').forEach((node) => { node.href = `https://wa.me/${SITE_CONFIG.contacts[node.dataset.contactWhatsapp].whatsapp}`; });
   const instagram = $('[data-bind="instagramLabel"]');
   if (instagram) instagram.href = SITE_CONFIG.contacts.instagram;
+  void refreshPublicVenue();
+}
+
+async function refreshPublicVenue() {
+  try {
+    const response = await fetch('/api/event-settings', { cache: 'no-store' });
+    if (!response.ok) return;
+    const settings = await response.json();
+    const venue = String(settings.venue || '').trim();
+    const node = $('[data-bind="venue"]');
+    if (venue && node) node.textContent = venue;
+  } catch {
+    // Keep the default “TO BE ANNOUNCED” venue if the settings endpoint is unavailable.
+  }
 }
 
 function populateOptions() {

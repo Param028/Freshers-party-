@@ -131,7 +131,7 @@ function mapPerformance(data) {
     consent: validConsent(data.consent)
   };
   const memberLines = row.member_names.split('\n').map((line) => line.trim()).filter(Boolean);
-  if (row.performance_name.length < 2 || row.lead_name.length < 2 || digits(row.phone).length !== 10 || row.member_count < 1 || row.member_count > 15 || (row.member_count > 1 && memberLines.length < row.member_count) || !row.performance_type || row.duration < 1 || row.duration > 5 || !row.lead_branch_year || !row.consent) {
+  if (row.performance_name.length < 2 || row.lead_name.length < 2 || digits(row.phone).length !== 10 || row.member_count < 1 || row.member_count > 15 || (row.member_count > 1 && memberLines.length < row.member_count) || !row.performance_type || row.duration < 1 || row.duration > 5 || row.lead_branch_year !== 'Data Science / 1st year' || !row.consent) {
     throw new Error('Please complete the performance entry with valid details.');
   }
   return row;
@@ -159,9 +159,23 @@ async function supabaseRequest(endpoint, options = {}) {
   return body;
 }
 
+async function getEventVenue() {
+  const rows = await supabaseRequest('event_settings?select=venue&setting_key=eq.global&limit=1');
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  return clean(row?.venue, 120) || 'TO BE ANNOUNCED';
+}
+
 async function handleApi(req, res, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     return sendJson(res, 200, { ok: true, databaseConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY), adminConfigured: Boolean(process.env.ADMIN_PASSWORD) });
+  }
+
+  if (pathname === '/api/event-settings' && req.method === 'GET') {
+    try {
+      return sendJson(res, 200, { ok: true, venue: await getEventVenue() });
+    } catch {
+      return sendJson(res, 503, { ok: false, error: 'Event location is temporarily unavailable.' });
+    }
   }
 
   if (pathname === '/api/registrations' && req.method === 'POST') {
@@ -182,6 +196,33 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === '/api/admin/session' && req.method === 'GET') {
     return sendJson(res, 200, { ok: true, authenticated: isValidSession(req) });
+  }
+
+  if (pathname === '/api/admin/event-settings' && req.method === 'GET') {
+    if (!requireAdmin(req, res)) return;
+    try {
+      return sendJson(res, 200, { ok: true, venue: await getEventVenue() });
+    } catch {
+      return sendJson(res, 503, { ok: false, error: 'Could not load the event location.' });
+    }
+  }
+
+  if (pathname === '/api/admin/event-settings' && req.method === 'PATCH') {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const body = await readJson(req);
+      const venue = typeof body.venue === 'string' ? body.venue.trim() : '';
+      if (!venue || venue.length > 120) return sendJson(res, 400, { ok: false, error: 'Enter a location of 1–120 characters.' });
+      const rows = await supabaseRequest('event_settings?on_conflict=setting_key', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify({ setting_key: 'global', venue })
+      });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      return sendJson(res, 200, { ok: true, venue: clean(row?.venue, 120) || venue });
+    } catch {
+      return sendJson(res, 503, { ok: false, error: 'Could not save the event location.' });
+    }
   }
 
   if (pathname === '/api/admin/login' && req.method === 'POST') {
