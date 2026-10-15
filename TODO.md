@@ -21,7 +21,7 @@
 - Submit through the server-side API to Supabase `public.performance_registrations`.
 
 ## [x] Prominent registration actions
-- “Register for Mr & Miss” and “Sign up to perform” are high-contrast primary actions displayed beside each other at desktop and mobile widths.
+- “Register for Mr & Miss” and “Sign up for cultural program” are high-contrast primary actions displayed beside each other at desktop and mobile widths; the compact mobile action bar and no-JavaScript fallback use matching cultural-program wording.
 - Both have generous tap targets and clear focus/hover states. A 375×812 Preview capture confirmed they are fully visible above the fixed mobile action bar.
 
 ## [x] Admin location control
