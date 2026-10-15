@@ -71,6 +71,16 @@ function requireAdmin(req, res) {
 }
 
 function readJson(req) {
+  if (req.body !== undefined) {
+    try {
+      const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : req.body;
+      const serialized = typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody ?? {});
+      if (Buffer.byteLength(serialized) > maxBodyBytes) return Promise.reject(new Error('Request body too large.'));
+      return Promise.resolve(typeof rawBody === 'string' ? JSON.parse(rawBody || '{}') : rawBody);
+    } catch (error) {
+      return Promise.reject(error.message === 'Request body too large.' ? error : new Error('Invalid JSON.'));
+    }
+  }
   return new Promise((resolve, reject) => {
     let total = 0;
     const chunks = [];
@@ -410,11 +420,16 @@ async function handleRequest(req, res) {
   });
 }
 
-const server = http.createServer((req, res) => {
-  handleRequest(req, res).catch((error) => {
+function applicationHandler(req, res) {
+  return handleRequest(req, res).catch((error) => {
     if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'Unexpected server error.' });
     console.error(error);
   });
-});
+}
 
-server.listen(port, '0.0.0.0', () => console.log(`Freshers site listening on http://0.0.0.0:${port}`));
+module.exports = applicationHandler;
+
+if (require.main === module) {
+  const server = http.createServer(applicationHandler);
+  server.listen(port, '0.0.0.0', () => console.log(`Freshers site listening on http://0.0.0.0:${port}`));
+}

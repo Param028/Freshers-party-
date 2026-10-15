@@ -21,3 +21,10 @@ The current public “Ping the crew” list is stored in the RLS-enabled Supabas
 
 
 Contact phone input is normalized by the shared `contact-phone.js` module used by both the server and admin UI; only supported, bounded formats are accepted, and records are stored as E.164 numbers. The database normalizer is restricted to trusted roles and the contact table constraint enforces canonical values. The dated migrations in `supabase/migrations/` preserve unsupported legacy values and abort rather than silently deleting or rewriting them.
+
+
+## Vercel deployment
+
+GitHub `main` pushes trigger the connected Vercel deployment. `vercel.json` publishes the `dist/` static output, maps `/admin` to the admin page, and the `api/[...path].js` function routes `/api/...` requests through the shared `server.js` handler. The function also supports Vercel's pre-parsed JSON request bodies.
+
+Vercel runtime secrets are separate from Manus-managed project secrets. In the Vercel project settings, configure `ADMIN_PASSWORD` and `SUPABASE_SERVICE_ROLE_KEY` for Production (and Preview if those deployments need organizer/data access); `SUPABASE_URL` can be set there to override the existing project default. Keep all values in Vercel's protected Environment Variables, never in this repository. Check `/api/health` for a JSON response with configuration booleans; it never returns secret values.

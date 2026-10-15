@@ -42,6 +42,10 @@
 - Keep the Supabase service-role key server-only and protect registration reads and updates behind organizer authentication.
 - The existing contestant and performance tables have RLS enabled. Validation made no registration writes or changes to existing registration records.
 
+## [ ] Vercel production API routing
+- Serve `/` and `/admin` from the production static output, and route `/api/...` to the shared Node handler as a Vercel serverless function so registration, admin login and contact management work on the deployed site.
+- Preserve server credentials only in Vercel's protected runtime environment; do not add them to Git or the static build. Verify deployment health/API responses are JSON rather than static-page fallback HTML.
+
 ## [x] Schema, route, runtime and handoff
 - `GET /manus-routes.json` returns `/` and `/admin`; root, public and production-build manifests are synchronized and Preview returned HTTP 200.
 - The event-location and crew-contact migrations are stored under `supabase/migrations/` and applied to the existing Supabase project. `event_settings` and `event_contacts` are RLS-enabled; the private database normalizer trims only ordinary spaces, rejects mixed formats/overlength input, and preserves unsupported legacy rows rather than silently rewriting them. Registration tables were not altered by these migrations.
