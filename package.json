@@ -1,0 +1,9 @@
+{
+  "name": "fresherpop",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js",
+    "build": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});fs.mkdirSync('dist');for(const f of ['index.html','admin.html','styles.css','script.js','logo.svg'])fs.copyFileSync(f,'dist/'+f);fs.copyFileSync('public/manus-routes.json','dist/manus-routes.json')\""
+  }
+}
