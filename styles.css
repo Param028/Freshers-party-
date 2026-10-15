@@ -293,3 +293,5 @@ fieldset { min-inline-size: 0; padding: 0; border: 0; } legend { margin-bottom: 
 }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } .reveal { opacity: 1; transform: none; } }
+
+.contact-empty { grid-column: 1 / -1; margin: 0; padding: 16px; color: var(--paper); background: rgba(17,17,17,.18); border: 2px dashed var(--paper); font: 700 .9rem/1.45 var(--comic); }

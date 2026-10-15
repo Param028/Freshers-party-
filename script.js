@@ -30,8 +30,6 @@ const SITE_CONFIG = {
     branches: ['Data Science']
   },
   contacts: {
-    primary: { name: 'Aarav Mehta', phone: '+91 98765 43210', whatsapp: '919876543210', role: 'EVENT LEAD' },
-    secondary: { name: 'Sana Kapoor', phone: '+91 91234 56789', whatsapp: '919123456789', role: 'STAGE & VIBES' },
     instagram: 'https://instagram.com/freshers.northstar',
     instagramLabel: '@freshers.northstar'
   },
@@ -83,16 +81,10 @@ function setTextBindings() {
     const value = values[node.dataset.bind];
     if (value !== undefined) node.textContent = value;
   });
-  $$('[data-contact-name]').forEach((node) => { node.textContent = SITE_CONFIG.contacts[node.dataset.contactName].name; });
-  $$('[data-contact-phone]').forEach((node) => { node.textContent = SITE_CONFIG.contacts[node.dataset.contactPhone].phone; });
-  $$('[data-contact-link]').forEach((node) => {
-    const contact = SITE_CONFIG.contacts[node.dataset.contactLink];
-    if (contact) node.href = `https://wa.me/${contact.whatsapp}`;
-  });
-  $$('[data-contact-call]').forEach((node) => { node.href = `tel:${SITE_CONFIG.contacts[node.dataset.contactCall].phone.replace(/\s/g, '')}`; });
-  $$('[data-contact-whatsapp]').forEach((node) => { node.href = `https://wa.me/${SITE_CONFIG.contacts[node.dataset.contactWhatsapp].whatsapp}`; });
   const instagram = $('[data-bind="instagramLabel"]');
   if (instagram) instagram.href = SITE_CONFIG.contacts.instagram;
+  renderCrewContacts([], 'Loading crew contacts…');
+  void refreshPublicContacts();
   void refreshPublicVenue();
 }
 
@@ -106,6 +98,85 @@ async function refreshPublicVenue() {
     if (venue && node) node.textContent = venue;
   } catch {
     // Keep the default “TO BE ANNOUNCED” venue if the settings endpoint is unavailable.
+  }
+}
+
+function toE164ContactPhone(value) {
+  const phone = String(value ?? '');
+  return /^\+[1-9]\d{7,14}$/.test(phone) ? phone : '';
+}
+
+function formatContactPhone(value) {
+  const e164 = toE164ContactPhone(value);
+  const digitsOnly = normalizePhone(e164);
+  return digitsOnly.startsWith('91') && digitsOnly.length === 12
+    ? `+91 ${digitsOnly.slice(2, 7)} ${digitsOnly.slice(7)}`
+    : e164;
+}
+
+function renderCrewContacts(contacts, emptyMessage = 'Crew contact details will be posted soon.') {
+  const container = $('#crew-contacts');
+  if (!container) return;
+  const validContacts = (Array.isArray(contacts) ? contacts : []).slice(0, 100).filter((contact) => {
+    return String(contact?.name || '').trim().length >= 2 && String(contact?.role || '').trim().length >= 2 && Boolean(toE164ContactPhone(contact?.phone));
+  });
+  if (!validContacts.length) {
+    const empty = document.createElement('p');
+    empty.className = 'contact-empty';
+    empty.textContent = emptyMessage;
+    container.replaceChildren(empty);
+    return;
+  }
+  const cards = validContacts.map((contact, index) => {
+    const name = String(contact.name).trim();
+    const role = String(contact.role).trim();
+    const e164 = toE164ContactPhone(contact.phone);
+    const digitsOnly = normalizePhone(e164);
+    const card = document.createElement('article');
+    card.className = `contact-person${index === 0 ? ' contact-primary' : ''}`;
+    const avatar = document.createElement('span');
+    avatar.className = `contact-avatar${index % 2 ? ' avatar-pink' : ''}`;
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.textContent = name.charAt(0).toUpperCase();
+    const details = document.createElement('span');
+    const roleNode = document.createElement('small');
+    roleNode.textContent = role;
+    const nameNode = document.createElement('strong');
+    nameNode.textContent = name;
+    const phoneNode = document.createElement('b');
+    phoneNode.textContent = formatContactPhone(e164);
+    const links = document.createElement('span');
+    links.className = 'contact-links';
+    const call = document.createElement('a');
+    call.href = `tel:${digitsOnly}`;
+    call.textContent = 'Call';
+    call.setAttribute('aria-label', `Call ${name}`);
+    const whatsapp = document.createElement('a');
+    whatsapp.href = `https://wa.me/${digitsOnly}`;
+    whatsapp.target = '_blank';
+    whatsapp.rel = 'noreferrer';
+    whatsapp.textContent = 'WhatsApp ↗';
+    whatsapp.setAttribute('aria-label', `WhatsApp ${name}`);
+    links.append(call, whatsapp);
+    details.append(roleNode, nameNode, phoneNode, links);
+    const arrow = document.createElement('span');
+    arrow.className = 'contact-arrow';
+    arrow.setAttribute('aria-hidden', 'true');
+    arrow.textContent = '↗';
+    card.append(avatar, details, arrow);
+    return card;
+  });
+  container.replaceChildren(...cards);
+}
+
+async function refreshPublicContacts() {
+  try {
+    const response = await fetch('/api/event-contacts', { cache: 'no-store' });
+    if (!response.ok) { renderCrewContacts([], 'Crew contacts are temporarily unavailable.'); return; }
+    const result = await response.json();
+    if (Array.isArray(result.contacts)) renderCrewContacts(result.contacts, 'No crew contacts have been added yet.');
+  } catch {
+    renderCrewContacts([], 'Crew contacts are temporarily unavailable.');
   }
 }
 

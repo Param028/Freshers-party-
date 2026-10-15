@@ -36,6 +36,12 @@
         <div class="section-heading"><div><p class="eyebrow">01 / EVENT CONTROL</p><h2 id="event-settings-title">Event location.</h2></div><p>Shown on the public Data Science Freshers page.</p></div>
         <form id="event-settings-form"><div class="tools"><label class="sr-only" for="venue-setting">Event location</label><input id="venue-setting" name="venue" type="text" maxlength="120" placeholder="TO BE ANNOUNCED" autocomplete="organization-title" required /><button class="button button-yellow" type="submit">Save location</button></div><p id="event-settings-status" role="status" aria-live="polite">Loading saved location…</p></form>
       </div>
+      <div class="registration-card" style="margin: 0 0 24px;" aria-labelledby="crew-manager-title">
+        <div class="section-heading"><div><p class="eyebrow">02 / PING THE CREW</p><h2 id="crew-manager-title">Crew contacts.</h2></div><button class="button button-yellow" id="add-crew-contact" type="button">Add person +</button></div>
+        <p>These names and phone numbers appear on the public event page. Save changes to update the Call and WhatsApp links.</p>
+        <div id="crew-contact-list" class="cards" aria-live="polite"><div class="empty">Loading crew contacts…</div></div>
+        <p id="crew-contact-status" role="status" aria-live="polite"></p>
+      </div>
       <div class="stats"><div class="stat"><small>Total entries</small><strong id="stat-total">0</strong></div><div class="stat"><small>Mr &amp; Miss</small><strong id="stat-contestants">0</strong></div><div class="stat"><small>Stage acts</small><strong id="stat-performances">0</strong></div><div class="stat"><small>New to review</small><strong id="stat-new">0</strong></div></div>
       <div class="toolbar"><div class="tabs" role="tablist"><button class="tab active" data-tab="contestants" type="button">Mr &amp; Miss</button><button class="tab" data-tab="performances" type="button">Stage acts</button></div><div class="tools"><label class="sr-only" for="search-input">Search registrations</label><input id="search-input" type="search" placeholder="Search name, roll, phone…" /><label class="sr-only" for="status-filter">Filter status</label><select id="status-filter"><option value="all">All statuses</option><option value="new">New</option><option value="shortlisted">Shortlisted</option><option value="confirmed">Confirmed</option><option value="rejected">Rejected</option></select><button class="button button-yellow" id="export-button" type="button">Export CSV</button><button class="button button-light" id="refresh-button" type="button">Refresh</button></div></div>
       <div class="section-heading"><div><p class="eyebrow" id="list-eyebrow">02 / CONTESTANT CAST</p><h2 id="list-title">Mr &amp; Miss entries.</h2></div><p id="last-updated">Not loaded yet</p></div>
@@ -44,16 +50,19 @@
   </main>
   <div class="toast" id="toast" hidden></div>
 
+  <script src="/contact-phone.js"></script>
   <script>
-    const state = { tab: 'contestants', status: 'all', query: '', contestants: [], performances: [] };
+    const state = { tab: 'contestants', status: 'all', query: '', contestants: [], performances: [], contacts: [] };
     const $ = (selector, scope = document) => scope.querySelector(selector);
     const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
     const formatDate = (value) => new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
     const phoneDigits = (value) => String(value || '').replace(/\D/g, '');
+    const normalizeCrewPhone = window.normalizeCrewPhone;
+    function displayCrewPhone(value) { const canonical = normalizeCrewPhone(value); const digits = phoneDigits(canonical); return digits.startsWith('91') && digits.length === 12 ? `+91 ${digits.slice(2, 7)} ${digits.slice(7)}` : canonical; }
     function toast(message) { const node = $('#toast'); node.textContent = message; node.hidden = false; window.clearTimeout(toast.timer); toast.timer = window.setTimeout(() => { node.hidden = true; }, 3500); }
     async function api(path, options = {}) { const response = await fetch(path, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } }); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error || 'Something went wrong.'); return body; }
-    function showDashboard() { $('#login-view').hidden = true; $('#dashboard-view').hidden = false; $('#logout-button').hidden = false; loadData(); loadEventSettings(); }
+    function showDashboard() { $('#login-view').hidden = true; $('#dashboard-view').hidden = false; $('#logout-button').hidden = false; loadData(); loadEventSettings(); loadCrewContacts(); }
     function showLogin(message = '') { $('#login-view').hidden = false; $('#dashboard-view').hidden = true; $('#logout-button').hidden = true; $('#login-error').textContent = message; }
     function statusClass(status) { return status === 'new' ? '' : ` ${status}`; }
     function currentRows() { const rows = state[state.tab] || []; const query = state.query.toLowerCase(); return rows.filter((row) => { const matchesStatus = state.status === 'all' || row.status === state.status; const haystack = JSON.stringify(row).toLowerCase(); return matchesStatus && (!query || haystack.includes(query)); }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); }
@@ -84,10 +93,58 @@
     }
     async function loadData() { try { const data = await api('/api/admin/registrations'); state.contestants = data.contestants || []; state.performances = data.performances || []; render(); } catch (error) { if (/login|required|401/i.test(error.message)) return showLogin('Your admin session expired.'); toast(error.message); } }
     async function loadEventSettings() { const status = $('#event-settings-status'); try { const data = await api('/api/admin/event-settings'); $('#venue-setting').value = data.venue || 'TO BE ANNOUNCED'; status.textContent = 'Current public location loaded.'; } catch (error) { if (/login|required|401/i.test(error.message)) return showLogin('Your admin session expired.'); status.textContent = error.message; } }
+    function renderCrewContacts() {
+      const list = $('#crew-contact-list');
+      if (!state.contacts.length) { list.innerHTML = '<div class="empty"><strong>No crew contacts yet.</strong>Add a person to show their phone number on the event page.</div>'; return; }
+      list.innerHTML = state.contacts.map((contact) => {
+        const draft = contact.draft === true;
+        const id = escapeHtml(contact.id || 'new');
+        return `<article class="registration-card crew-contact-card" data-contact-id="${id}" data-draft="${draft}"><div class="details"><div class="field"><label for="crew-name-${id}">Name</label><input id="crew-name-${id}" data-field="name" type="text" maxlength="60" required value="${escapeHtml(contact.name || '')}" placeholder="Name" /></div><div class="field"><label for="crew-role-${id}">Role</label><input id="crew-role-${id}" data-field="role" type="text" maxlength="60" required value="${escapeHtml(contact.role || '')}" placeholder="Event lead" /></div><div class="field"><label for="crew-phone-${id}">Phone number</label><input id="crew-phone-${id}" data-field="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="25" required value="${escapeHtml(displayCrewPhone(contact.phone || ''))}" placeholder="10-digit Indian number or +country code" /></div><div class="notes crew-contact-actions"><button class="button button-yellow" type="button" data-contact-action="save">Save contact</button><button class="button button-red" type="button" data-contact-action="remove">Remove</button></div></div></article>`;
+      }).join('');
+    }
+    async function loadCrewContacts() { const status = $('#crew-contact-status'); try { const data = await api('/api/admin/event-contacts'); state.contacts = data.contacts || []; renderCrewContacts(); status.textContent = `${state.contacts.length} public crew contact${state.contacts.length === 1 ? '' : 's'} loaded.`; } catch (error) { if (/login|required|401/i.test(error.message)) return showLogin('Your admin session expired.'); status.textContent = error.message; } }
+    async function saveCrewContact(card, button) {
+      const status = $('#crew-contact-status');
+      const contact = Object.fromEntries($$('[data-field]', card).map((input) => [input.dataset.field, input.dataset.field === 'phone' ? input.value : input.value.trim()]));
+      const normalizedPhone = normalizeCrewPhone(contact.phone);
+      if (!contact.name || !contact.role || !normalizedPhone) { status.textContent = 'Enter a name, role and a 10-digit Indian number or international number with +country code.'; return; }
+      const isDraft = card.dataset.draft === 'true';
+      button.disabled = true;
+      status.textContent = 'Saving contact…';
+      try {
+        const path = isDraft ? '/api/admin/event-contacts' : `/api/admin/event-contacts/${encodeURIComponent(card.dataset.contactId)}`;
+        const saved = await api(path, { method: isDraft ? 'POST' : 'PATCH', body: JSON.stringify(contact) });
+        state.contacts = state.contacts.filter((item) => item.id !== card.dataset.contactId);
+        if (saved.contact) state.contacts.push(saved.contact);
+        state.contacts.sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+        renderCrewContacts();
+        status.textContent = 'Saved. The public crew list now has the updated contact.';
+        toast('Crew contact saved.');
+      } catch (error) { status.textContent = error.message; toast(error.message); }
+      finally { if (button.isConnected) button.disabled = false; }
+    }
+    async function removeCrewContact(card, button) {
+      const status = $('#crew-contact-status');
+      if (card.dataset.draft === 'true') { state.contacts = state.contacts.filter((item) => item.id !== card.dataset.contactId); renderCrewContacts(); status.textContent = 'New contact draft removed.'; return; }
+      const name = $('[data-field="name"]', card).value.trim() || 'this contact';
+      if (!window.confirm(`Remove ${name} from the public crew list?`)) return;
+      button.disabled = true;
+      status.textContent = 'Removing contact…';
+      try {
+        await api(`/api/admin/event-contacts/${encodeURIComponent(card.dataset.contactId)}`, { method: 'DELETE' });
+        state.contacts = state.contacts.filter((item) => item.id !== card.dataset.contactId);
+        renderCrewContacts();
+        status.textContent = 'Contact removed from the public crew list.';
+        toast('Crew contact removed.');
+      } catch (error) { status.textContent = error.message; toast(error.message); }
+      finally { if (button.isConnected) button.disabled = false; }
+    }
     async function updateStatus(select) { const card = select.closest('.registration-card'); const type = card.dataset.type; try { await api(`/api/admin/registrations/${type === 'contestants' ? 'contestant' : 'performance'}/${select.dataset.statusId}`, { method: 'PATCH', body: JSON.stringify({ status: select.value, admin_notes: $('textarea', card).value }) }); const rows = state[type]; const row = rows.find((item) => item.id === select.dataset.statusId); if (row) row.status = select.value; render(); toast('Status updated.'); } catch (error) { toast(error.message); } }
     async function saveNote(button) { const card = button.closest('.registration-card'); const type = card.dataset.saveType; try { await api(`/api/admin/registrations/${type === 'contestants' ? 'contestant' : 'performance'}/${button.dataset.saveId}`, { method: 'PATCH', body: JSON.stringify({ status: $('.status', card).value, admin_notes: $('textarea', card).value }) }); const row = state[type].find((item) => item.id === button.dataset.saveId); if (row) row.admin_notes = $('textarea', card).value; toast('Organizer note saved.'); } catch (error) { toast(error.message); } }
     function exportCsv() { const rows = currentRows(); if (!rows.length) return toast('Nothing to export in this view.'); const keys = state.tab === 'contestants' ? ['full_name','roll_number','category','year','phone','status','admin_notes','created_at'] : ['performance_name','lead_name','phone','member_count','member_names','performance_type','duration','description','needs','lead_branch_year','status','admin_notes','created_at']; const csv = [keys.join(','), ...rows.map((row) => keys.map((key) => `"${String(row[key] ?? '').replace(/"/g, '""')}"`).join(','))].join('\n'); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${state.tab}-${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(link.href); }
     $('#event-settings-form').addEventListener('submit', async (event) => { event.preventDefault(); const venue = $('#venue-setting').value.trim(); const button = $('button[type="submit"]', event.currentTarget); const status = $('#event-settings-status'); if (!venue) { status.textContent = 'Enter a location before saving.'; return; } button.disabled = true; status.textContent = 'Saving location…'; try { const saved = await api('/api/admin/event-settings', { method: 'PATCH', body: JSON.stringify({ venue }) }); $('#venue-setting').value = saved.venue; status.textContent = 'Saved. The public page will show this location.'; toast('Event location saved.'); } catch (error) { status.textContent = error.message; toast(error.message); } finally { button.disabled = false; } });
+    $('#add-crew-contact').addEventListener('click', () => { const draft = { id: `draft-${Date.now()}`, name: '', role: '', phone: '', draft: true }; state.contacts.unshift(draft); renderCrewContacts(); $('#crew-contact-list [data-field="name"]')?.focus(); $('#crew-contact-status').textContent = 'Enter the new person’s details and select Save contact.'; });
+    $('#crew-contact-list').addEventListener('click', async (event) => { const button = event.target.closest('button[data-contact-action]'); if (!button) return; const card = button.closest('.crew-contact-card'); if (!card) return; if (button.dataset.contactAction === 'save') await saveCrewContact(card, button); if (button.dataset.contactAction === 'remove') await removeCrewContact(card, button); });
     $('#login-form').addEventListener('submit', async (event) => { event.preventDefault(); $('#login-error').textContent = ''; const button = $('button', event.currentTarget); button.disabled = true; try { await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ password: $('#admin-password').value }) }); $('#admin-password').value = ''; showDashboard(); } catch (error) { $('#login-error').textContent = error.message; } finally { button.disabled = false; } });
     $('#logout-button').addEventListener('click', async () => { await api('/api/admin/logout', { method: 'POST' }).catch(() => {}); showLogin(); });
     $$('.tab').forEach((button) => button.addEventListener('click', () => { $$('.tab').forEach((tab) => tab.classList.toggle('active', tab === button)); state.tab = button.dataset.tab; render(); }));

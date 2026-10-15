@@ -14,3 +14,10 @@ The repository ignores `.env` and `.env.*`, while explicitly allowing the safe `
 The managed project reads `SUPABASE_SERVICE_ROLE_KEY` and `ADMIN_PASSWORD` from its protected environment configuration. They are server-only variables, are not bundled into the page, and must be entered or replaced only through the managed secret-input flow. Development and production secret scopes are independent: configure each environment explicitly when different values are required. Do not paste values into source files, migration files, logs, task notes, or version control.
 
 `SUPABASE_URL` is the public project endpoint and is set to the existing `freshers-party-registrations` project by the server default; it may also be supplied through the local environment. The committed `.env.example` uses placeholders for privileged values and is safe to share.
+
+## Organizer-managed crew contacts
+
+The current public “Ping the crew” list is stored in the RLS-enabled Supabase `public.event_contacts` table. Only the server-side service role can access this table, and all list/add/edit/remove operations are exposed through `/api/admin/event-contacts` with the organizer session required. Public visitors receive only the contact fields needed to render Call and WhatsApp links through `/api/event-contacts`. Manage the list from the protected `/admin` dashboard; do not add contact details or credentials to source files.
+
+
+Contact phone input is normalized by the shared `contact-phone.js` module used by both the server and admin UI; only supported, bounded formats are accepted, and records are stored as E.164 numbers. The database normalizer is restricted to trusted roles and the contact table constraint enforces canonical values. The dated migrations in `supabase/migrations/` preserve unsupported legacy values and abort rather than silently deleting or rewriting them.

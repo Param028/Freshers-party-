@@ -2,6 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const normalizeCrewPhone = require('./contact-phone');
 
 const port = Number(process.env.PORT || 3000);
 const projectUrl = process.env.SUPABASE_URL || 'https://bapvqzcwofbbmtipmtbc.supabase.co';
@@ -93,6 +94,10 @@ function clean(value, max = 500) {
   return String(value ?? '').trim().slice(0, max);
 }
 
+function isJsonObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function digits(value) {
   return clean(value).replace(/\D/g, '');
 }
@@ -165,6 +170,25 @@ async function getEventVenue() {
   return clean(row?.venue, 120) || 'TO BE ANNOUNCED';
 }
 
+function mapEventContact(data) {
+  if (!isJsonObject(data)) throw new Error('Please provide a valid crew contact.');
+  const phone = normalizeCrewPhone(data.phone);
+  const contact = {
+    name: clean(data.name, 60),
+    role: clean(data.role, 60),
+    phone
+  };
+  if (contact.name.length < 2 || contact.role.length < 2 || !contact.phone) {
+    throw new Error('Please provide a valid crew contact.');
+  }
+  return contact;
+}
+
+async function getEventContacts() {
+  const rows = await supabaseRequest('event_contacts?select=id,name,role,phone,sort_order&order=sort_order.asc,created_at.asc&limit=100');
+  return Array.isArray(rows) ? rows : [];
+}
+
 async function handleApi(req, res, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     return sendJson(res, 200, { ok: true, databaseConfigured: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY), adminConfigured: Boolean(process.env.ADMIN_PASSWORD) });
@@ -178,9 +202,18 @@ async function handleApi(req, res, pathname) {
     }
   }
 
+  if (pathname === '/api/event-contacts' && req.method === 'GET') {
+    try {
+      return sendJson(res, 200, { ok: true, contacts: await getEventContacts() });
+    } catch {
+      return sendJson(res, 503, { ok: false, error: 'Crew contacts are temporarily unavailable.' });
+    }
+  }
+
   if (pathname === '/api/registrations' && req.method === 'POST') {
     try {
       const body = await readJson(req);
+      if (!isJsonObject(body)) return sendJson(res, 400, { ok: false, error: 'A valid registration object is required.' });
       const type = body.type === 'contest' ? 'contest' : body.type === 'performance' ? 'performance' : null;
       if (!type) return sendJson(res, 400, { ok: false, error: 'Unknown registration type.' });
       const row = type === 'contest' ? mapContestant(body.data || {}) : mapPerformance(body.data || {});
@@ -189,7 +222,7 @@ async function handleApi(req, res, pathname) {
       const first = Array.isArray(created) ? created[0] : created;
       return sendJson(res, 201, { ok: true, id: first?.id, created_at: first?.created_at });
     } catch (error) {
-      const status = /configured|service key/i.test(error.message) ? 503 : /valid|complete/i.test(error.message) ? 400 : 502;
+      const status = /configured|service key/i.test(error.message) ? 503 : /invalid json|valid|complete/i.test(error.message) ? 400 : 502;
       return sendJson(res, status, { ok: false, error: error.message });
     }
   }
@@ -211,6 +244,7 @@ async function handleApi(req, res, pathname) {
     if (!requireAdmin(req, res)) return;
     try {
       const body = await readJson(req);
+      if (!isJsonObject(body)) return sendJson(res, 400, { ok: false, error: 'A valid settings object is required.' });
       const venue = typeof body.venue === 'string' ? body.venue.trim() : '';
       if (!venue || venue.length > 120) return sendJson(res, 400, { ok: false, error: 'Enter a location of 1–120 characters.' });
       const rows = await supabaseRequest('event_settings?on_conflict=setting_key', {
@@ -220,14 +254,80 @@ async function handleApi(req, res, pathname) {
       });
       const row = Array.isArray(rows) ? rows[0] : rows;
       return sendJson(res, 200, { ok: true, venue: clean(row?.venue, 120) || venue });
+    } catch (error) {
+      return sendJson(res, error.message === 'Invalid JSON.' ? 400 : 503, { ok: false, error: error.message === 'Invalid JSON.' ? 'A valid settings object is required.' : 'Could not save the event location.' });
+    }
+  }
+
+  if (pathname === '/api/admin/event-contacts' && req.method === 'GET') {
+    if (!requireAdmin(req, res)) return;
+    try {
+      return sendJson(res, 200, { ok: true, contacts: await getEventContacts() });
     } catch {
-      return sendJson(res, 503, { ok: false, error: 'Could not save the event location.' });
+      return sendJson(res, 503, { ok: false, error: 'Could not load crew contacts.' });
+    }
+  }
+
+  if (pathname === '/api/admin/event-contacts' && req.method === 'POST') {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const body = await readJson(req);
+      const contact = mapEventContact(body);
+      const lastRows = await supabaseRequest('event_contacts?select=sort_order&order=sort_order.desc&limit=1');
+      const sortOrder = (Array.isArray(lastRows) && lastRows.length ? Number(lastRows[0].sort_order) || 0 : 0) + 10;
+      const rows = await supabaseRequest('event_contacts', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ ...contact, sort_order: sortOrder })
+      });
+      const saved = Array.isArray(rows) ? rows[0] : rows;
+      return sendJson(res, 201, { ok: true, contact: saved });
+    } catch (error) {
+      const duplicate = /duplicate key/i.test(error.message);
+      const invalid = ['Please provide a valid crew contact.', 'Invalid JSON.'].includes(error.message);
+      return sendJson(res, invalid ? 400 : duplicate ? 409 : 503, { ok: false, error: invalid ? 'Enter a name, role and a 10-digit Indian number or international number with +country code.' : duplicate ? 'That crew contact is already listed.' : 'Could not add the crew contact.' });
+    }
+  }
+
+  const contactMatch = pathname.match(/^\/api\/admin\/event-contacts\/([0-9a-f-]{36})$/i);
+  if (contactMatch && req.method === 'PATCH') {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const body = await readJson(req);
+      const contact = mapEventContact(body);
+      const rows = await supabaseRequest(`event_contacts?id=eq.${encodeURIComponent(contactMatch[1])}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(contact)
+      });
+      const saved = Array.isArray(rows) ? rows[0] : rows;
+      if (!saved) return sendJson(res, 404, { ok: false, error: 'Crew contact not found.' });
+      return sendJson(res, 200, { ok: true, contact: saved });
+    } catch (error) {
+      const duplicate = /duplicate key/i.test(error.message);
+      const invalid = ['Please provide a valid crew contact.', 'Invalid JSON.'].includes(error.message);
+      return sendJson(res, invalid ? 400 : duplicate ? 409 : 503, { ok: false, error: invalid ? 'Enter a name, role and a 10-digit Indian number or international number with +country code.' : duplicate ? 'That crew contact is already listed.' : 'Could not save the crew contact.' });
+    }
+  }
+
+  if (contactMatch && req.method === 'DELETE') {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const rows = await supabaseRequest(`event_contacts?id=eq.${encodeURIComponent(contactMatch[1])}`, {
+        method: 'DELETE',
+        headers: { Prefer: 'return=representation' }
+      });
+      if (!Array.isArray(rows) || !rows.length) return sendJson(res, 404, { ok: false, error: 'Crew contact not found.' });
+      return sendJson(res, 200, { ok: true });
+    } catch {
+      return sendJson(res, 503, { ok: false, error: 'Could not remove the crew contact.' });
     }
   }
 
   if (pathname === '/api/admin/login' && req.method === 'POST') {
     try {
       const body = await readJson(req);
+      if (!isJsonObject(body)) return sendJson(res, 400, { ok: false, error: 'A valid login object is required.' });
       const password = String(body.password || '');
       const expected = process.env.ADMIN_PASSWORD || '';
       const matches = password.length === expected.length && expected.length > 0 && crypto.timingSafeEqual(Buffer.from(password), Buffer.from(expected));
@@ -263,13 +363,14 @@ async function handleApi(req, res, pathname) {
     if (!requireAdmin(req, res)) return;
     try {
       const body = await readJson(req);
+      if (!isJsonObject(body)) return sendJson(res, 400, { ok: false, error: 'A valid registration update object is required.' });
       const status = ['new', 'shortlisted', 'confirmed', 'rejected'].includes(body.status) ? body.status : null;
       if (!status) return sendJson(res, 400, { ok: false, error: 'Invalid registration status.' });
       const table = updateMatch[1].toLowerCase() === 'contestant' ? 'contestant_registrations' : 'performance_registrations';
       await supabaseRequest(`${table}?id=eq.${encodeURIComponent(updateMatch[2])}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status, admin_notes: clean(body.admin_notes, 1000) }) });
       return sendJson(res, 200, { ok: true });
     } catch (error) {
-      return sendJson(res, 503, { ok: false, error: error.message });
+      return sendJson(res, error.message === 'Invalid JSON.' ? 400 : 503, { ok: false, error: error.message === 'Invalid JSON.' ? 'A valid registration update object is required.' : error.message });
     }
   }
 

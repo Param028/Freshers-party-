@@ -1,7 +1,7 @@
 FROM node:22-alpine
 WORKDIR /app
 COPY package.json ./
-COPY index.html admin.html styles.css script.js server.js logo.svg ./
+COPY index.html admin.html styles.css script.js contact-phone.js server.js logo.svg ./
 COPY public ./public
 RUN npm run build
 ENV NODE_ENV=production

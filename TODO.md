@@ -30,6 +30,13 @@
 - Only authenticated admin requests can read or update settings. Unauthenticated settings reads return 401; blank location updates return 400. The public read and authenticated admin read both return the default.
 - Preview login remains `HttpOnly`, `Secure` and `SameSite=None`. No actual venue value was supplied, so no real location update was written to the shared live database.
 
+## [x] Admin-managed crew contacts
+- The public “Ping the crew” section displays the saved organizer contact list, including each person's name, role, phone number, Call link and WhatsApp link; keep the event's Instagram link unchanged.
+- In the login-protected `/admin` dashboard, organizers can add a person and edit or remove existing contacts. Each contact has a name, role and phone number, with validated input and clear save/delete feedback. One shared browser/server phone helper enforces the raw 25-character limit, accepts only explicit single-separator formats, normalizes Indian 10-digit mobile numbers to `+91`, and stores international entries in E.164 format.
+- Persist the contact list in the RLS-enabled Supabase `public.event_contacts` table, seeded with the two existing public contacts, and expose it to the public only through the server. Require admin authentication for every contact-management API operation.
+- Local and stable Preview checks: public and authenticated list reads return two contacts; unauthenticated admin access returns 401; malformed phone and null JSON payloads return 400. Read-only SQL checks confirm the database helper matches the shared format rules. The real database was not modified to test a valid add/edit/delete operation.
+- Do not modify contestant or performance registrations while adding this feature.
+
 ## [x] Existing admin dashboard and data protection
 - Preserve search, status filtering, refresh, CSV export, call/WhatsApp actions, registration status updates (`new`, `shortlisted`, `confirmed`, `rejected`) and organizer notes.
 - Keep the Supabase service-role key server-only and protect registration reads and updates behind organizer authentication.
@@ -37,7 +44,7 @@
 
 ## [x] Schema, route, runtime and handoff
 - `GET /manus-routes.json` returns `/` and `/admin`; root, public and production-build manifests are synchronized and Preview returned HTTP 200.
-- The event-location migration is stored at `supabase/migrations/20261015112000_add_event_location_setting.sql` and applied to the existing Supabase project. It created an RLS-enabled settings table and one default row; it did not alter registration tables.
+- The event-location and crew-contact migrations are stored under `supabase/migrations/` and applied to the existing Supabase project. `event_settings` and `event_contacts` are RLS-enabled; the private database normalizer trims only ordinary spaces, rejects mixed formats/overlength input, and preserves unsupported legacy rows rather than silently rewriting them. Registration tables were not altered by these migrations.
 - `.env` and local secret paths are ignored while the placeholder-only `.env.example` remains trackable.
-- Node and inline admin JavaScript syntax checks, JSON checks, production build and `git diff --check` pass. Protected read checks showed zero contestant and performance registrations.
+- Node and inline admin JavaScript syntax checks, JSON checks, production build and `git diff --check` pass. Dockerfile includes the shared helper; a container build could not be run because the Docker CLI is unavailable in this sandbox. No registration test records were inserted or modified.
 - No new password or Supabase credential was written to source, documentation or Git. Auto-publish remains disabled.
