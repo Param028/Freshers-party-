@@ -19,9 +19,9 @@ const SITE_CONFIG = {
     venueDetail: 'Data Science Department',
     collegeName: 'DATA SCIENCE DEPARTMENT',
     collegeShort: 'DATA SCIENCE',
-    registrationDeadline: '2026-10-22T17:00:00+05:30',
-    deadlineLabel: '22 OCT 2026',
-    deadlineLabelShort: '22 OCT',
+    registrationDeadline: '2026-10-19T23:59:59+05:30',
+    deadlineLabel: 'MONDAY, 19 OCT 2026',
+    deadlineLabelShort: 'MON 19 OCT',
     openDateLabel: '01 OCT',
     auditionDateLabel: 'TO BE ANNOUNCED'
   },

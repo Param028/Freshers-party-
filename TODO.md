@@ -7,7 +7,7 @@
 
 ## [x] Data Science Department event details
 - The Freshers Party is clearly identified as a Data Science Department event across the event page; the performance branch option and server-side lead check are limited to Data Science.
-- The event date is Thursday, 22 October 2026 in the hero, countdown and timeline. Registration closes when the event begins at 5:00 PM; remaining schedule details are labelled “To be announced” rather than retaining stale November dates.
+- The event date is Thursday, 22 October 2026 in the hero, countdown and timeline. Registration closes Monday, 19 October 2026 at 11:59 PM IST; remaining schedule details are labelled “To be announced” rather than retaining stale November dates.
 - The location is labelled “To be announced” by default and refreshes from the saved server setting.
 
 ## [x] Mr & Miss Freshers registration
